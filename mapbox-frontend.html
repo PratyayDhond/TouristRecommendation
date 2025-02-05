@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tourist Place Recommender</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet" />
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #map { width: 100vw; height: 100vh;}
+    </style>
+</head>
+<body>
+    <h1>Find Your Nearest Tourist Spot</h1>
+    <div id="map"></div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGhvbmRwcmF0eWF5IiwiYSI6ImNrczJzMWQ4czFudHkycG1zdWs3YXN3NXkifQ.dePGXkzPoEbdCZEcfFn_AQ';  
+        let map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [77.5946, 12.9716],  // Initial coordinates (you can change this as needed)
+            zoom: 10
+        });
+
+        // Function to draw the route on the map
+        function drawRoute(route) {
+            if (route) {
+                map.addSource('route', {
+                    'type': 'geojson',
+                    'data': route
+                });
+
+                map.addLayer({
+                    'id': 'route',
+                    'type': 'line',
+                    'source': 'route',
+                    'layout': {
+                        'line-join': 'round',
+                        'line-cap': 'round'
+                    },
+                    'paint': {
+                        'line-color': '#0074cc',
+                        'line-width': 5
+                    }
+                });
+            }
+        }
+
+        // Function to get heatmap data
+        function getHeatmapData() {
+            fetch('http://127.0.0.1:5000/all_locations')  // Replace with the actual API endpoint for location data
+                .then(response => response.json())
+                .then(data => {
+                    let locations = data; // Assuming the response contains an array of location objects with lat, lon, and density
+                    let heatmapData = locations.map(location => {
+                        return [location.lon, location.lat, location.normalized_density, location.name];  // Format: [longitude, latitude, density]
+                    });
+
+                    addHeatmapLayer(heatmapData);
+                })
+                .catch(error => console.error('Error fetching heatmap data:', error));
+        }
+
+        // Function to add heatmap layer
+        function addHeatmapLayer(heatmapData) {
+            map.addSource('heatmap', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: heatmapData.map(([lon, lat, density]) => ({
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [lon, lat] },
+                        properties: { density: normalized_density }
+                    }))
+                }
+            });
+
+            console.log(heatmapData)
+
+            map.addLayer({
+                'id': 'heatmap-layer',
+                'type': 'heatmap',
+                'source': 'heatmap',
+                'paint': {
+                    'heatmap-intensity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        12, 1,
+                        22, 3
+                    ],
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(0, 0, 255, 0)',
+                        0.1, 'rgba(0, 255, 255, 0.5)',
+                        0.5, 'rgba(0, 255, 0, 0.5)',
+                        1, 'rgba(255, 0, 0, 0.5)'
+                    ],
+                    'heatmap-radius': 20,
+                    'heatmap-opacity': 0.7
+                }
+            });
+        }
+
+        // function getRecommendation(lat, lon, density) {
+        //     fetch(`http://127.0.0.1:5000/recommend?lat=${lat}&lon=${lon}&density=${density}`)
+        //         .then(response => response.json())
+        //         .then(data => {
+        //             if (data.message) {
+        //                 alert(data.message);
+        //                 return;
+        //             }
+
+        //             let place = data;
+        //             map.flyTo({ center: [place.lon, place.lat], zoom: 12 });
+
+        //             new mapboxgl.Marker()
+        //                 .setLngLat([place.lon, place.lat])
+        //                 .setPopup(new mapboxgl.Popup().setHTML(`<h3>${place.name}</h3>`))
+        //                 .addTo(map);
+
+        //             // Request the route to the recommended place
+        //             getRoute(lat, lon, place.lat, place.lon);
+        //         })
+        //         .catch(error => console.error('Error fetching data:', error));
+        // }
+
+        // Function to request the route from the Directions API
+        
+function getRecommendation(lat, lon, minDensity, maxDensity, numRecommendations) {
+    fetch(`http://127.0.0.1:5000/recommend?lat=${lat}&lon=${lon}&min_density=${minDensity}&max_density=${maxDensity}&num=${numRecommendations}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.message) {
+                alert(data.message);
+                return;
+            }
+
+            map.flyTo({ center: [data[0].lon, data[0].lat], zoom: 12 });
+            console.log(data)
+            data.forEach(place => {
+                new mapboxgl.Marker()
+                    .setLngLat([place.lon, place.lat])
+                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${place.name}</h3> Density: ${place.normalized_density} </br> People Count: ${place.density}`))
+                    .addTo(map);
+
+                getRoute(lat,lon,place.lat,place.lon)
+            });
+        })
+        .catch(error => console.error('Error fetching recommendations:', error));
+}
+
+
+function askForDensity(lat, lon) {
+    let minDensity = prompt("Enter your minimum density preference:", "0");
+    let maxDensity = prompt("Enter your maximum density preference:", "100");
+    let numRecommendations = prompt("How many recommendations do you want?", "5");
+
+    if (minDensity && maxDensity && numRecommendations) {
+        getRecommendation(lat, lon, minDensity, maxDensity, numRecommendations);
+    }
+}
+
+
+        function getRoute(startLat, startLon, endLat, endLon) {
+            let directionsUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`;
+
+            fetch(directionsUrl)
+                .then(response => response.json())
+                .then(data => {
+                    let route = data.routes[0].geometry;
+                    drawRoute(route); 
+                })
+                .catch(error => console.error('Error fetching route:', error));
+        }
+
+        // function askForDensity(lat, lon) {
+        //     let density = prompt("Enter your density preference:", "350");
+        //     if (density) {
+        //         getRecommendation(lat, lon, density);
+        //     }
+        // }
+
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        let lat = position.coords.latitude;
+                        let lon = position.coords.longitude;
+                        map.setCenter([lon, lat]);
+                        askForDensity(lat, lon);
+                    },
+                    (error) => {
+                        alert("Geolocation is not enabled. Please enter your location manually.");
+                    }
+                );
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        window.onload = function () {
+            getUserLocation();
+            getHeatmapData();  // Fetch and add the heatmap layer
+        };
+    </script>
+</body>
+</html>
