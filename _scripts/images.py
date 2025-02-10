@@ -2,7 +2,7 @@ import os
 import requests
 
 # Google Places API key
-API_KEY = "AIzaSyBIm-ek6rDQ2-yYnCHLKp2dvjK0rITz5dg"
+API_KEY = "XXX"
 
 # Function to search for places near a location
 def get_places_nearby(location, radius=1000, place_type="restaurant"):
