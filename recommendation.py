@@ -170,30 +170,74 @@ def recommend():
     max_density = int(request.args.get('max_density'))
     num_recommendations = int(request.args.get('num'))
 
+    w_dist = 0.8
+    w_den = 0.2
+    preferred_density = (min_density + max_density)/2
+
     filtered_places = [
         {
+            'normalized_density': place_data['normalized_density'],
             'lat': place_data['lat'],
             'lon': place_data['lon'],
             'density': place_data['density'],
-            'normalized_density': place_data['normalized_density'],
-            'name': place
+            'name': place,
     }
         for place, place_data in tourist_places_data.items()
         if min_density <= place_data['normalized_density'] <= max_density
     ]
 
+
+    max_distance = max(haversine(user_lat, user_lon, place['lat'], place['lon']) for place in filtered_places) or 1  # Avoid division by zero
+    max_density_diff = max(abs(place['normalized_density'] - preferred_density) for place in filtered_places) or 1
+
+
+    for place_data in filtered_places:
+        place_data['distance_preference'] = w_dist * (haversine(user_lat, user_lon, place_data['lat'], place_data['lon']) / max_distance)
+        place_data['density_preference'] =  w_den * (abs(place_data['normalized_density'] - preferred_density) / max_density_diff)  
+
+    filtered_places.sort(
+        key=lambda place: (
+            w_dist * (haversine(user_lat, user_lon, place['lat'], place['lon']) / max_distance) +  # Normalized distance
+            w_den * (abs(place['normalized_density'] - preferred_density) / max_density_diff)     # Normalized density diff
+        )
+    )
+
+    print(min_density)
+    print(max_density)
+    print(f'max_distance : ${max_distance}')
+    print(f'max_density_diff : ${max_density_diff}')
+
+
+    # filtered_places.sort(key=lambda place: abs(place['normalized_density'] - preferred_density))
+    print(preferred_density)
+    print(filtered_places)
+
     if not filtered_places:
         return jsonify({"message": "No places match your density preference."})
 
     # Sort by distance and get top `num_recommendations`
-    sorted_places = sorted(
-        filtered_places,
-        key=lambda place: haversine(user_lat, user_lon, place['lat'], place['lon'])
-    )[:num_recommendations]
+    # sorted_places = sorted(
+    #     filtered_places,
+    #     key=lambda place: haversine(user_lat, user_lon, place['lat'], place['lon'])
+    # )[:num_recommendations]
 
+    # priorty = density score * weight_for_density + distance score * weight_for_distance
 
+    result_array = filtered_places[:num_recommendations]
 
-    return jsonify(sorted_places)
+    average_distance = 0
+    average_preference = 0
+    for ele in result_array:
+        ele['preference'] = ele['distance_preference'] + ele['density_preference']
+        # print(1-ele['preference'])
+        average_distance += haversine(user_lat, user_lon, ele['lat'], ele['lon'])
+        average_preference +=  1 - ele['preference']
+
+    average_distance = average_distance/len(result_array)
+    average_preference = average_preference / len(result_array)
+    print(f'average-preference: {average_preference}')
+
+    return jsonify(result_array)
 
 
 if __name__ == '__main__':

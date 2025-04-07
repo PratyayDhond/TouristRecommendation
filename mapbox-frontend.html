@@ -20,33 +20,70 @@
         let map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/mapbox/streets-v11',
-            center: [77.5946, 12.9716],  // Initial coordinates (you can change this as needed)
+            center: [0,0],  // Initial coordinates (you can change this as needed)
+            // center: [77.5946, 12.9716],  // Initial coordinates (you can change this as needed)
             zoom: 10
         });
 
         // Function to draw the route on the map
-        function drawRoute(route) {
-            if (route) {
-                map.addSource('route', {
-                    'type': 'geojson',
-                    'data': route
-                });
+        // function drawRoute(route) {
+        //     if (route) {
+        //         map.addSource('route', {
+        //             'type': 'geojson',
+        //             'data': route
+        //         });
 
-                map.addLayer({
-                    'id': 'route',
-                    'type': 'line',
-                    'source': 'route',
-                    'layout': {
-                        'line-join': 'round',
-                        'line-cap': 'round'
-                    },
-                    'paint': {
-                        'line-color': '#0074cc',
-                        'line-width': 5
-                    }
-                });
+        //         map.addLayer({
+        //             'id': 'route',
+        //             'type': 'line',
+        //             'source': 'route',
+        //             'layout': {
+        //                 'line-join': 'round',
+        //                 'line-cap': 'round'
+        //             },
+        //             'paint': {
+        //                 'line-color': '#0074cc',
+        //                 'line-width': 5
+        //             }
+        //         });
+        //     }
+        // }
+        let routeCounter = 0; // To give unique IDs to each route
+
+        // function getRandomColor() {
+        //     return colors[Math.floor(Math.random() * colors.length)];
+        // }
+        const colors = ['#000000', '#ff0000', '#0000ff', '#2e2e2e',  '#00ff00.', '#ff338f'];
+        let drawCount = 0;
+        function drawRoute(route) {
+            let routeId = `route-${routeCounter++}`; // Unique ID for each route
+
+            if (map.getSource(routeId)) {
+                map.removeLayer(routeId);
+                map.removeSource(routeId);
             }
+        
+            map.addSource(routeId, {
+                'type': 'geojson',
+                'data': route
+            });
+        
+            map.addLayer({
+                'id': routeId,
+                'type': 'line',
+                'source': routeId,
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': colors[drawCount%colors.length], // Function to generate random colors
+                    'line-width': 5
+                }
+            });
+            drawCount += 1
         }
+
 
         // Function to get heatmap data
         function getHeatmapData() {
@@ -132,6 +169,11 @@
         // Function to request the route from the Directions API
         
 function getRecommendation(lat, lon, minDensity, maxDensity, numRecommendations) {
+    // [lat, lon] = [18.679341488076954, 73.65629881149238]   
+    // [lat,lon] = [18.473230684507.953, 73.82494803949268] 
+    // [lat,lon] = [18.50975952749915, 73.78301713939722] // chandni chowk
+    // lat = 18.528617796023
+    // lon = 73.8515518333578
     fetch(`http://127.0.0.1:5000/recommend?lat=${lat}&lon=${lon}&min_density=${minDensity}&max_density=${maxDensity}&num=${numRecommendations}`)
         .then(response => response.json())
         .then(data => {
@@ -141,15 +183,17 @@ function getRecommendation(lat, lon, minDensity, maxDensity, numRecommendations)
             }
 
             map.flyTo({ center: [data[0].lon, data[0].lat], zoom: 12 });
-            console.log(data)
             data.forEach(place => {
                 new mapboxgl.Marker()
                     .setLngLat([place.lon, place.lat])
                     .setPopup(new mapboxgl.Popup().setHTML(`<h3>${place.name}</h3> Density: ${place.normalized_density} </br> People Count: ${place.density}`))
                     .addTo(map);
-
-                getRoute(lat,lon,place.lat,place.lon)
-            });
+                // getRoute(lat,lon,place.lat,place.lon)
+                });
+            console.log(data)
+            getRoute(lat,lon,data[0].lat,data[0].lon)
+          //  getRoute(18.473230684507953, 73.82494803949268, 18.448299333294347, 73.88087331904809)
+          //  getRoute(18.50975952749915,73.78301713939722, 18.52666352568133, 73.81593046427638)
         })
         .catch(error => console.error('Error fetching recommendations:', error));
 }
@@ -157,7 +201,7 @@ function getRecommendation(lat, lon, minDensity, maxDensity, numRecommendations)
 
 function askForDensity(lat, lon) {
     let minDensity = prompt("Enter your minimum density preference:", "0");
-    let maxDensity = prompt("Enter your maximum density preference:", "100");
+    let maxDensity = prompt("Enter your maximum density preference:", "80");
     let numRecommendations = prompt("How many recommendations do you want?", "5");
 
     if (minDensity && maxDensity && numRecommendations) {
@@ -167,6 +211,7 @@ function askForDensity(lat, lon) {
 
 
         function getRoute(startLat, startLon, endLat, endLon) {
+            console.log("Creating route for lat-" + endLat + " lon-" + endLat)
             let directionsUrl = `https://api.mapbox.com/directions/v5/mapbox/driving/${startLon},${startLat};${endLon},${endLat}?steps=true&geometries=geojson&access_token=${mapboxgl.accessToken}`;
 
             fetch(directionsUrl)
@@ -193,6 +238,8 @@ function askForDensity(lat, lon) {
                         let lon = position.coords.longitude;
                         map.setCenter([lon, lat]);
                         askForDensity(lat, lon);
+                        console.log(lat)
+                        console.log(lon)
                     },
                     (error) => {
                         alert("Geolocation is not enabled. Please enter your location manually.");
