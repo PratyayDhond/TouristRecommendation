@@ -27,6 +27,21 @@ while true; do
   # Wait for 1 second
   sleep 1
   
+
+    echo "Pressing Ctrl+S..."
+  xdotool keydown Control_L
+  xdotool key s
+  xdotool keyup Control_L
+
+  # Wait for 3 seconds
+  sleep 2
+  
+  # Simulate pressing Return/Enter
+  echo "Pressing Return/Enter..."
+  xdotool key Return
+  
+  sleep 1
+
   # Simulate pressing Ctrl+W
   echo "Pressing Ctrl+W..."
   xdotool keydown Control_L

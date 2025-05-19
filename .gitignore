@@ -31,3 +31,10 @@ db.sqlite3
 
 # Custom directory
 _geotagged_images/
+_non_geotagged_images/
+_geotagged_timestamped_images/
+._geotagged_images/
+._geotagged_timestamped_images/
+geotagged_images/
+_geotagged_timestamped_images.zip
+_geotagged_timestamped_images
